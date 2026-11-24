@@ -1,0 +1,21 @@
+<Project>
+  <PropertyGroup>
+    <!--
+      Folder containing KeePass.exe, which provides the plugin API.
+      Defaults to the standard install location; override per build with:
+        dotnet build -p:KeePassPath="D:\Tools\KeePass"
+    -->
+    <KeePassPath Condition="'$(KeePassPath)' == ''">C:\Program Files\KeePass Password Safe 2\</KeePassPath>
+    <!-- Command-line properties cannot be reassigned, so normalize into a separate property. -->
+    <KeePassExe>$([MSBuild]::EnsureTrailingSlash('$(KeePassPath)'))KeePass.exe</KeePassExe>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="KeePass">
+      <HintPath>$(KeePassExe)</HintPath>
+    </Reference>
+  </ItemGroup>
+  <Target Name="CheckKeePassPath" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(KeePassExe)')"
+           Text="'$(KeePassExe)' not found. Install KeePass 2.x there or pass -p:KeePassPath=&lt;folder containing KeePass.exe&gt;." />
+  </Target>
+</Project>

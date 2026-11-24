@@ -1,0 +1,52 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write # only used by the release step on tags
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Build and test
+        shell: pwsh
+        run: ./build.ps1 -DownloadKeePass
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: KeePassDicewareMinQuality
+          path: artifacts/
+
+      - name: Check tag matches version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        run: |
+          $line = Get-Content .meta/version.info | Where-Object { $_ -like 'KeePassDicewareMinQuality:*' }
+          $version = $line.Split(':')[1]
+          if ("v$version" -ne $env:GITHUB_REF_NAME) {
+            throw "Tag $env:GITHUB_REF_NAME does not match .meta/version.info ($version)."
+          }
+
+      # Creates a draft so the releaser can add a summary before publishing.
+      - name: Create draft release
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create $env:GITHUB_REF_NAME
+          artifacts/KeePassDicewareMinQuality.dll artifacts/KeePassDicewareMinQuality.dll.sha256
+          --draft --generate-notes --title $env:GITHUB_REF_NAME
