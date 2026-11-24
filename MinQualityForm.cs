@@ -39,7 +39,9 @@ namespace KeePassGeneratorMinQuality
 		private readonly NumericUpDown _bitsInput;
 		private readonly CheckedListBox _generatorList;
 
-		internal MinQualityForm(long currentBits, bool bitsEnforced, IList<GeneratorChoice> generators, bool generatorsEnforced)
+		/// <param name="generatorsWarning">Shown under the generator list when the saved list is invalid; null if valid.</param>
+		internal MinQualityForm(long currentBits, bool bitsEnforced, IList<GeneratorChoice> generators, bool generatorsEnforced,
+			string generatorsWarning = null)
 		{
 			Text = "Generator Minimum Quality";
 			FormBorderStyle = FormBorderStyle.FixedDialog;
@@ -89,6 +91,10 @@ namespace KeePassGeneratorMinQuality
 
 			AddWide(layout, WrappedLabel("Apply to these generators:", top: 12));
 			AddWide(layout, _generatorList);
+			if (generatorsWarning != null)
+			{
+				AddWide(layout, WrappedLabel(generatorsWarning));
+			}
 			if (generatorsEnforced)
 			{
 				AddWide(layout, WrappedLabel(EnforcedNote));

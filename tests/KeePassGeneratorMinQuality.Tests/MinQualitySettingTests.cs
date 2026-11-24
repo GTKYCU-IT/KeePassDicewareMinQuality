@@ -4,6 +4,9 @@ using System.Xml;
 using KeePass.App.Configuration;
 
 using KeePassLib;
+using KeePassLib.Cryptography;
+using KeePassLib.Cryptography.PasswordGenerator;
+using KeePassLib.Security;
 
 using Xunit;
 
@@ -43,29 +46,77 @@ namespace KeePassGeneratorMinQuality.Tests
 			Assert.Equal(55, MinQualitySetting.ReadBits(config));
 		}
 
-		[Fact]
-		public void ReadGenerators_MissingMeansDicewareAndEmptyMeansNone()
+		private sealed class NamedGenerator : CustomPwGenerator
+		{
+			public override PwUuid Uuid { get; } = new(true);
+
+			public override string Name => "Named";
+
+			public override ProtectedString Generate(PwProfile prf, CryptoRandomStream crsRandomSource) => ProtectedString.Empty;
+		}
+
+		private static GeneratorTargets Read(string generatorsValue)
 		{
 			var config = new AceCustomConfig();
-			Assert.Equal(new[] { MinQualitySetting.DicewareUuid }, MinQualitySetting.ReadGenerators(config));
-
-			config.SetString(MinQualitySetting.GeneratorsKey, "");
-			Assert.Empty(MinQualitySetting.ReadGenerators(config));
+			if (generatorsValue != null)
+			{
+				config.SetString(MinQualitySetting.GeneratorsKey, generatorsValue);
+			}
+			return MinQualitySetting.ReadGenerators(config);
 		}
 
 		[Fact]
-		public void ReadGenerators_ParsesCommaSeparatedBase64AndSkipsInvalidEntries()
+		public void ReadGenerators_MissingMeansDicewareAndEmptyMeansNone()
+		{
+			GeneratorTargets missing = Read(null);
+			Assert.True(missing.IsValid);
+			Assert.Equal(new[] { MinQualitySetting.DicewareUuid }, missing.Uuids);
+
+			GeneratorTargets empty = Read(" , ");
+			Assert.True(empty.IsValid);
+			Assert.Empty(empty.Uuids);
+		}
+
+		[Fact]
+		public void ReadGenerators_ParsesCommaSeparatedBase64()
 		{
 			var a = new PwUuid(true);
 			var b = new PwUuid(true);
+			GeneratorTargets targets = Read($" {MinQualitySetting.ToBase64(a)} ,{MinQualitySetting.ToBase64(b)},,{MinQualitySetting.ToBase64(a)}");
+
+			Assert.True(targets.IsValid);
+			Assert.Equal(new[] { a, b }, targets.Uuids);
+
 			var config = new AceCustomConfig();
-			config.SetString(MinQualitySetting.GeneratorsKey,
-				$" {MinQualitySetting.ToBase64(a)} ,not-base64,AAAA,{MinQualitySetting.ToBase64(b)},{MinQualitySetting.ToBase64(a)}");
-
-			Assert.Equal(new[] { a, b }, MinQualitySetting.ReadGenerators(config));
-
 			MinQualitySetting.WriteGenerators(config, new[] { b });
-			Assert.Equal(new[] { b }, MinQualitySetting.ReadGenerators(config));
+			Assert.Equal(new[] { b }, MinQualitySetting.ReadGenerators(config).Uuids);
+		}
+
+		[Fact]
+		public void MistypedGeneratorList_FailsClosedToEveryInstalledGenerator()
+		{
+			// A typo in an (enforced) list must not leave the intended generator without the minimum.
+			var intended = new NamedGenerator();
+			var unrelated = new NamedGenerator();
+			var installed = new CustomPwGenerator[] { intended, unrelated };
+
+			GeneratorTargets targets = Read($"{MinQualitySetting.ToBase64(unrelated.Uuid)},not-a-uuid,AAAA");
+
+			Assert.False(targets.IsValid);
+			Assert.Equal(new[] { "not-a-uuid", "AAAA" }, targets.InvalidEntries);
+			Assert.Equal(new[] { intended.Uuid, unrelated.Uuid }, MinQualitySetting.EffectiveTargets(targets, installed));
+			Assert.Contains("not-a-uuid, AAAA", MinQualitySetting.InvalidGeneratorsWarning(targets));
+		}
+
+		[Fact]
+		public void ValidGeneratorList_TargetsOnlyTheListedGenerators()
+		{
+			var listed = new NamedGenerator();
+			var installed = new CustomPwGenerator[] { new NamedGenerator(), listed };
+
+			GeneratorTargets targets = Read(MinQualitySetting.ToBase64(listed.Uuid));
+
+			Assert.Equal(new[] { listed.Uuid }, MinQualitySetting.EffectiveTargets(targets, installed));
 		}
 
 		[Theory]

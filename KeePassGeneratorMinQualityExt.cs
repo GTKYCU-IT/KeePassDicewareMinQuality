@@ -9,6 +9,7 @@ using KeePass.Plugins;
 using KeePass.UI;
 
 using KeePassLib;
+using KeePassLib.Utility;
 
 namespace KeePassGeneratorMinQuality
 {
@@ -67,27 +68,41 @@ namespace KeePassGeneratorMinQuality
 			return item;
 		}
 
-		private void OnFormLoadPost(object sender, EventArgs e) => ApplyTargets();
+		private void OnFormLoadPost(object sender, EventArgs e)
+		{
+			GeneratorTargets targets = ApplyTargets();
+			if (!targets.IsValid)
+			{
+				MessageService.ShowWarning(MinQualitySetting.InvalidGeneratorsWarning(targets));
+			}
+		}
 
-		private void ApplyTargets() => _wrappers.Apply(MinQualitySetting.ReadGenerators(_host.CustomConfig));
+		private GeneratorTargets ApplyTargets()
+		{
+			GeneratorTargets targets = MinQualitySetting.ReadGenerators(_host.CustomConfig);
+			_wrappers.Apply(MinQualitySetting.EffectiveTargets(targets, _host.PwGeneratorPool));
+			return targets;
+		}
 
 		private void ShowSettings()
 		{
 			AceCustomConfig config = _host.CustomConfig;
 			XmlDocument enforced = AppConfigSerializer.EnforcedConfigXml;
-			List<PwUuid> targets = MinQualitySetting.ReadGenerators(config);
+			GeneratorTargets targets = MinQualitySetting.ReadGenerators(config);
+			List<PwUuid> effective = MinQualitySetting.EffectiveTargets(targets, _host.PwGeneratorPool);
 
 			// Wrappers report the wrapped generator's UUID and name, so the pool lists every plugin generator once.
 			var choices = _host.PwGeneratorPool
-				.Select(g => new GeneratorChoice(g.Uuid, g.Name, targets.Contains(g.Uuid)))
+				.Select(g => new GeneratorChoice(g.Uuid, g.Name, effective.Contains(g.Uuid)))
 				.ToList();
-			choices.AddRange(targets
+			choices.AddRange(targets.Uuids
 				.Where(t => choices.All(c => !c.Uuid.Equals(t)))
 				.Select(t => new GeneratorChoice(t, null, true)));
 
 			using var form = new MinQualityForm(
 				MinQualitySetting.ReadBits(config), MinQualitySetting.IsEnforced(enforced, MinQualitySetting.BitsKey),
-				choices, MinQualitySetting.IsEnforced(enforced, MinQualitySetting.GeneratorsKey));
+				choices, MinQualitySetting.IsEnforced(enforced, MinQualitySetting.GeneratorsKey),
+				targets.IsValid ? null : MinQualitySetting.InvalidGeneratorsWarning(targets));
 			if (form.ShowDialog(GlobalWindowManager.TopWindow) != DialogResult.OK)
 			{
 				return;

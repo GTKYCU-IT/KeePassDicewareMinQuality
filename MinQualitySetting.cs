@@ -6,6 +6,7 @@ using System.Xml;
 using KeePass.App.Configuration;
 
 using KeePassLib;
+using KeePassLib.Cryptography.PasswordGenerator;
 
 namespace KeePassGeneratorMinQuality
 {
@@ -34,28 +35,45 @@ namespace KeePassGeneratorMinQuality
 		internal static void WriteBits(AceCustomConfig config, long bits) => config.SetLong(BitsKey, bits);
 
 		/// <summary>
-		/// Target generator UUIDs. A missing key means Diceware only; an empty value means none. Entries that aren't
-		/// a base64 16-byte UUID are skipped.
+		/// Reads the target generators. A missing key means Diceware only; an empty value means none. Blank entries
+		/// are ignored; any other entry that isn't a base64 16-byte UUID makes the list invalid.
 		/// </summary>
-		internal static List<PwUuid> ReadGenerators(AceCustomConfig config)
+		internal static GeneratorTargets ReadGenerators(AceCustomConfig config)
 		{
 			string value = config.GetString(GeneratorsKey, null);
 			if (value == null)
 			{
-				return new List<PwUuid> { DicewareUuid };
+				return new GeneratorTargets(new List<PwUuid> { DicewareUuid }, new List<string>());
 			}
 
-			var result = new List<PwUuid>();
-			foreach (string entry in value.Split(','))
+			var uuids = new List<PwUuid>();
+			var invalid = new List<string>();
+			foreach (string entry in value.Split(',').Select(e => e.Trim()).Where(e => e.Length != 0))
 			{
-				PwUuid uuid = TryParseUuid(entry.Trim());
-				if (uuid != null && !result.Contains(uuid))
+				PwUuid uuid = TryParseUuid(entry);
+				if (uuid == null)
 				{
-					result.Add(uuid);
+					invalid.Add(entry);
+				}
+				else if (!uuids.Contains(uuid))
+				{
+					uuids.Add(uuid);
 				}
 			}
-			return result;
+			return new GeneratorTargets(uuids, invalid);
 		}
+
+		/// <summary>
+		/// The generators to wrap. An invalid list fails closed: a mistyped UUID must not leave the generator it was
+		/// meant to name without the minimum, so every installed plugin generator is targeted until it's fixed.
+		/// </summary>
+		internal static List<PwUuid> EffectiveTargets(GeneratorTargets targets, IEnumerable<CustomPwGenerator> installed) =>
+			targets.IsValid ? targets.Uuids.ToList() : installed.Select(g => g.Uuid).ToList();
+
+		internal static string InvalidGeneratorsWarning(GeneratorTargets targets) =>
+			$"The generator list ({GeneratorsKey}) has entries that aren't generator UUIDs: " +
+			string.Join(", ", targets.InvalidEntries) + ". Until it's fixed, the minimum quality applies to every " +
+			"plugin password generator.";
 
 		internal static void WriteGenerators(AceCustomConfig config, IEnumerable<PwUuid> generators) =>
 			config.SetString(GeneratorsKey, string.Join(",", generators.Select(ToBase64)));
@@ -82,5 +100,21 @@ namespace KeePassGeneratorMinQuality
 		/// <param name="enforcedConfig"><c>AppConfigSerializer.EnforcedConfigXml</c>; null when there is no enforced file.</param>
 		internal static bool IsEnforced(XmlDocument enforcedConfig, string key) =>
 			enforcedConfig?.SelectSingleNode($"/Configuration/Custom/Item[Key='{key}']") != null;
+	}
+
+	/// <summary>The configured target generators, plus any entries that couldn't be parsed.</summary>
+	internal sealed class GeneratorTargets
+	{
+		internal GeneratorTargets(IReadOnlyList<PwUuid> uuids, IReadOnlyList<string> invalidEntries)
+		{
+			Uuids = uuids;
+			InvalidEntries = invalidEntries;
+		}
+
+		internal IReadOnlyList<PwUuid> Uuids { get; }
+
+		internal IReadOnlyList<string> InvalidEntries { get; }
+
+		internal bool IsValid => InvalidEntries.Count == 0;
 	}
 }
