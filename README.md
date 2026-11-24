@@ -49,7 +49,15 @@ They are stored as KeePass custom configuration items:
 | Key | Value |
 |---|---|
 | `KeePassGeneratorMinQuality_MinQualityBits` | Minimum quality in bits |
-| `KeePassGeneratorMinQuality_Generators` | Comma-separated generator UUIDs, base64-encoded. This is the form KeePass stores in a profile's `CustomAlgorithmUuid` and the dialog displays. An empty value selects none. Entries that aren't a valid UUID are ignored. |
+| `KeePassGeneratorMinQuality_Generators` | Comma-separated generator UUIDs, base64-encoded. This is the form KeePass stores in a profile's `CustomAlgorithmUuid` and the dialog displays. An empty value selects none. |
+
+**A malformed generator list fails closed.** If any entry isn't a valid UUID, the minimum applies to **every**
+installed plugin generator until the list is fixed. KeePass shows a warning at startup naming the bad entries, and
+the dialog shows it too. A mistyped UUID can't leave its generator unprotected without anyone noticing.
+
+A typo can still produce a valid UUID for a generator that doesn't exist. That entry shows in the dialog as
+*Not installed*. After deploying an enforced list, open the dialog on one machine and check that each intended
+generator is ticked by name.
 
 ### Enforcing settings for every user
 
