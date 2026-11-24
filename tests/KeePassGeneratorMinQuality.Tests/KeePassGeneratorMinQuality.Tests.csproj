@@ -8,7 +8,7 @@
     <DicewareDll Condition="'$(DicewareDll)' == ''">$(MSBuildThisFileDirectory)..\..\.deps\KeePassDiceware.dll</DicewareDll>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\..\KeePassDicewareMinQuality.csproj" />
+    <ProjectReference Include="..\..\KeePassGeneratorMinQuality.csproj" />
     <Reference Include="KeePassDiceware">
       <HintPath>$(DicewareDll)</HintPath>
     </Reference>

@@ -1,21 +1,47 @@
 using System;
+using System.Collections.Generic;
 using System.Drawing;
+using System.Linq;
 using System.Windows.Forms;
 
 using KeePass.UI;
 
-namespace KeePassDicewareMinQuality
+using KeePassLib;
+
+namespace KeePassGeneratorMinQuality
 {
-	/// <summary>Tools menu dialog for viewing and, unless enforced, changing the minimum quality.</summary>
+	/// <summary>A generator the dialog can target. <see cref="Name"/> is null when it isn't installed.</summary>
+	internal sealed class GeneratorChoice
+	{
+		internal GeneratorChoice(PwUuid uuid, string name, bool selected)
+		{
+			Uuid = uuid;
+			Name = name;
+			Selected = selected;
+		}
+
+		internal PwUuid Uuid { get; }
+
+		internal string Name { get; }
+
+		internal bool Selected { get; }
+
+		public override string ToString() =>
+			$"{Name ?? "Not installed"} ({MinQualitySetting.ToBase64(Uuid)})";
+	}
+
+	/// <summary>Tools menu dialog for viewing and, unless enforced, changing the minimum and target generators.</summary>
 	internal sealed class MinQualityForm : Form
 	{
-		private const int TextWidth = 340;
+		private const int TextWidth = 380;
+		private const string EnforcedNote = "Set by your administrator in KeePass.config.enforced.xml. It can't be changed here.";
 
 		private readonly NumericUpDown _bitsInput;
+		private readonly CheckedListBox _generatorList;
 
-		internal MinQualityForm(long currentBits, bool enforced)
+		internal MinQualityForm(long currentBits, bool bitsEnforced, IList<GeneratorChoice> generators, bool generatorsEnforced)
 		{
-			Text = "Diceware Minimum Quality";
+			Text = "Generator Minimum Quality";
 			FormBorderStyle = FormBorderStyle.FixedDialog;
 			MaximizeBox = false;
 			MinimizeBox = false;
@@ -34,20 +60,42 @@ namespace KeePassDicewareMinQuality
 				Maximum = Math.Max(1000, currentBits),
 				Value = currentBits,
 				Width = 80,
-				Enabled = !enforced,
+				Enabled = !bitsEnforced,
 			};
+
+			_generatorList = new CheckedListBox
+			{
+				CheckOnClick = true,
+				IntegralHeight = false,
+				Width = TextWidth,
+				Enabled = !generatorsEnforced,
+			};
+			foreach (GeneratorChoice choice in generators)
+			{
+				_generatorList.Items.Add(choice, choice.Selected);
+			}
+			_generatorList.Height = _generatorList.ItemHeight * Math.Max(3, Math.Min(generators.Count, 8)) + 4;
 
 			var layout = new TableLayoutPanel { AutoSize = true, ColumnCount = 2, Dock = DockStyle.Fill };
 			layout.Controls.Add(new Label { Text = "Minimum quality (bits):", AutoSize = true, Anchor = AnchorStyles.Left });
 			layout.Controls.Add(_bitsInput);
-			AddWideLabel(layout,
-				"Diceware passwords are regenerated until KeePass's quality estimate reaches this value. " +
-				"0 turns the check off.");
-			if (enforced)
+			AddWide(layout, WrappedLabel(
+				"Passwords from the selected generators are regenerated until KeePass's quality estimate reaches " +
+				"this value. 0 turns the check off."));
+			if (bitsEnforced)
 			{
-				AddWideLabel(layout,
-					"Set by your administrator in KeePass.config.enforced.xml. It can't be changed here.");
+				AddWide(layout, WrappedLabel(EnforcedNote));
 			}
+
+			AddWide(layout, WrappedLabel("Apply to these generators:", top: 12));
+			AddWide(layout, _generatorList);
+			if (generatorsEnforced)
+			{
+				AddWide(layout, WrappedLabel(EnforcedNote));
+			}
+			AddWide(layout, WrappedLabel(
+				"Only generators added by plugins are listed. KeePass's built-in character set and pattern " +
+				"generators can't be selected."));
 
 			var buttons = new FlowLayoutPanel
 			{
@@ -56,40 +104,42 @@ namespace KeePassDicewareMinQuality
 				Dock = DockStyle.Fill,
 				Margin = new Padding(0, 8, 0, 0),
 			};
-			var cancel = new Button { Text = enforced ? "Close" : "Cancel", DialogResult = DialogResult.Cancel };
+			bool editable = BitsEditable || GeneratorsEditable;
+			var cancel = new Button { Text = editable ? "Cancel" : "Close", DialogResult = DialogResult.Cancel };
 			CancelButton = cancel;
-			if (!enforced)
+			buttons.Controls.Add(cancel);
+			if (editable)
 			{
 				var ok = new Button { Text = "OK", DialogResult = DialogResult.OK };
 				AcceptButton = ok;
-				buttons.Controls.Add(cancel);
 				buttons.Controls.Add(ok);
 			}
-			else
-			{
-				buttons.Controls.Add(cancel);
-			}
-			layout.Controls.Add(buttons);
-			layout.SetColumnSpan(buttons, 2);
+			AddWide(layout, buttons);
 
 			Controls.Add(layout);
 		}
 
 		internal long MinQualityBits => (long)_bitsInput.Value;
 
-		internal bool IsEditable => _bitsInput.Enabled;
+		internal bool BitsEditable => _bitsInput.Enabled;
 
-		private static void AddWideLabel(TableLayoutPanel layout, string text)
+		internal bool GeneratorsEditable => _generatorList.Enabled;
+
+		internal IEnumerable<PwUuid> SelectedGenerators =>
+			_generatorList.CheckedItems.Cast<GeneratorChoice>().Select(c => c.Uuid).ToList();
+
+		private static Label WrappedLabel(string text, int top = 8) => new Label
 		{
-			var label = new Label
-			{
-				Text = text,
-				AutoSize = true,
-				MaximumSize = new Size(TextWidth, 0),
-				Margin = new Padding(3, 8, 3, 0),
-			};
-			layout.Controls.Add(label);
-			layout.SetColumnSpan(label, 2);
+			Text = text,
+			AutoSize = true,
+			MaximumSize = new Size(TextWidth, 0),
+			Margin = new Padding(3, top, 3, 0),
+		};
+
+		private static void AddWide(TableLayoutPanel layout, Control control)
+		{
+			layout.Controls.Add(control);
+			layout.SetColumnSpan(control, 2);
 		}
 
 		protected override void OnLoad(EventArgs e)

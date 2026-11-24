@@ -6,19 +6,14 @@ using KeePassLib.Cryptography.PasswordGenerator;
 using KeePassLib.Security;
 using KeePassLib.Utility;
 
-namespace KeePassDicewareMinQuality
+namespace KeePassGeneratorMinQuality
 {
 	/// <summary>
-	/// Stands in for the upstream Diceware generator under its own UUID, so existing profiles keep working,
+	/// Stands in for a plugin password generator under its own UUID, so existing profiles keep working,
 	/// and regenerates until KeePass's quality estimate reaches the configured minimum.
 	/// </summary>
 	internal sealed class MinQualityPwGenerator : CustomPwGenerator
 	{
-		/// <summary>UUID of upstream cmdwtf/KeePassDiceware's generator; profiles reference it.</summary>
-		internal static readonly PwUuid DicewareUuid = new PwUuid(new byte[] {
-			0xBA, 0x8E, 0x96, 0xF8, 0x66, 0xAE, 0x41, 0xEB,
-			0x9E, 0xE3, 0x90, 0xC9, 0x9E, 0xAD, 0x86, 0x0B, });
-
 		/// <summary>How many candidates are generated before giving up on reaching the minimum.</summary>
 		internal const int MaxAttempts = 1000;
 
@@ -72,17 +67,17 @@ namespace KeePassDicewareMinQuality
 
 			throw new InvalidOperationException(
 				$"{_inner.Name} could not generate a password with an estimated quality of at least {minBits} bits " +
-				$"after {MaxAttempts} attempts. Increase the word count or salt in the {_inner.Name} options. " +
-				"The minimum is set under Tools > Diceware Minimum Quality.");
+				$"after {MaxAttempts} attempts. Strengthen the {_inner.Name} settings in the password generator profile. " +
+				"The minimum is set under Tools > Generator Minimum Quality.");
 		}
 
 		/// <summary>
-		/// Replaces the Diceware generator in <paramref name="pool"/> with a wrapper, keeping its position.
-		/// Returns null if Diceware isn't registered or is already wrapped.
+		/// Replaces the generator with UUID <paramref name="target"/> in <paramref name="pool"/> with a wrapper,
+		/// keeping its position. Returns null if no such generator is registered or it is already wrapped.
 		/// </summary>
-		internal static MinQualityPwGenerator Install(CustomPwGeneratorPool pool, Func<long> minQualityBits)
+		internal static MinQualityPwGenerator Install(CustomPwGeneratorPool pool, PwUuid target, Func<long> minQualityBits)
 		{
-			CustomPwGenerator inner = pool.Find(DicewareUuid);
+			CustomPwGenerator inner = pool.Find(target);
 			if (inner == null || inner is MinQualityPwGenerator)
 			{
 				return null;

@@ -24,7 +24,7 @@ using KeePassLib.Security;
 
 using Xunit;
 
-namespace KeePassDicewareMinQuality.Tests
+namespace KeePassGeneratorMinQuality.Tests
 {
 	public class MinQualityPwGeneratorTests
 	{
@@ -36,7 +36,7 @@ namespace KeePassDicewareMinQuality.Tests
 		private static PwProfile DicewareProfile(string options = "") => new()
 		{
 			GeneratorType = PasswordGeneratorType.Custom,
-			CustomAlgorithmUuid = Convert.ToBase64String(MinQualityPwGenerator.DicewareUuid.UuidBytes),
+			CustomAlgorithmUuid = Convert.ToBase64String(MinQualitySetting.DicewareUuid.UuidBytes),
 			CustomAlgorithmOptions = options,
 		};
 
@@ -45,7 +45,7 @@ namespace KeePassDicewareMinQuality.Tests
 		{
 			public int Calls { get; private set; }
 
-			public override PwUuid Uuid => MinQualityPwGenerator.DicewareUuid;
+			public override PwUuid Uuid => MinQualitySetting.DicewareUuid;
 
 			public override string Name => "Scripted";
 
@@ -53,9 +53,9 @@ namespace KeePassDicewareMinQuality.Tests
 				new(false, passwords[Math.Min(Calls++, passwords.Length - 1)]);
 		}
 
-		private sealed class OtherGenerator : CustomPwGenerator
+		private sealed class OtherGenerator(PwUuid uuid = null) : CustomPwGenerator
 		{
-			public override PwUuid Uuid { get; } = new(true);
+			public override PwUuid Uuid { get; } = uuid ?? new PwUuid(true);
 
 			public override string Name => "Other";
 
@@ -99,7 +99,7 @@ namespace KeePassDicewareMinQuality.Tests
 
 			var inner = new ScriptedGenerator(weak, weak, strong, weak);
 			var pool = new CustomPwGeneratorPool { inner };
-			MinQualityPwGenerator wrapper = MinQualityPwGenerator.Install(pool, () => Bits(strong));
+			MinQualityPwGenerator wrapper = MinQualityPwGenerator.Install(pool, MinQualitySetting.DicewareUuid, () => Bits(strong));
 
 			ProtectedString result = wrapper.Generate(DicewareProfile(), NewRandom(1));
 
@@ -112,7 +112,7 @@ namespace KeePassDicewareMinQuality.Tests
 		{
 			var inner = new ScriptedGenerator("aaaa");
 			var pool = new CustomPwGeneratorPool { inner };
-			MinQualityPwGenerator wrapper = MinQualityPwGenerator.Install(pool, () => 10_000);
+			MinQualityPwGenerator wrapper = MinQualityPwGenerator.Install(pool, MinQualitySetting.DicewareUuid, () => 10_000);
 
 			var ex = Assert.Throws<InvalidOperationException>(() => wrapper.Generate(DicewareProfile(), NewRandom(1)));
 
@@ -127,11 +127,11 @@ namespace KeePassDicewareMinQuality.Tests
 			var inner = new ScriptedGenerator("x");
 			var pool = new CustomPwGeneratorPool { other, inner };
 
-			MinQualityPwGenerator wrapper = MinQualityPwGenerator.Install(pool, () => 0);
+			MinQualityPwGenerator wrapper = MinQualityPwGenerator.Install(pool, MinQualitySetting.DicewareUuid, () => 0);
 
 			Assert.NotNull(wrapper);
 			Assert.Equal(new CustomPwGenerator[] { other, wrapper }, pool.ToArray());
-			Assert.Null(MinQualityPwGenerator.Install(pool, () => 0)); // Already wrapped.
+			Assert.Null(MinQualityPwGenerator.Install(pool, MinQualitySetting.DicewareUuid, () => 0)); // Already wrapped.
 
 			wrapper.Uninstall(pool);
 
@@ -144,8 +144,37 @@ namespace KeePassDicewareMinQuality.Tests
 			var other = new OtherGenerator();
 			var pool = new CustomPwGeneratorPool { other };
 
-			Assert.Null(MinQualityPwGenerator.Install(pool, () => 0));
+			Assert.Null(MinQualityPwGenerator.Install(pool, MinQualitySetting.DicewareUuid, () => 0));
 			Assert.Equal(new CustomPwGenerator[] { other }, pool.ToArray());
+		}
+
+		[Fact]
+		public void WrapperSet_FollowsTargetChangesAndLateRegistrations()
+		{
+			var other = new OtherGenerator();
+			var diceware = new ScriptedGenerator("x");
+			var pool = new CustomPwGeneratorPool { other, diceware };
+			var wrappers = new WrapperSet(pool, () => 0);
+			bool IsWrapped(CustomPwGenerator g) => pool.Find(g.Uuid) is MinQualityPwGenerator;
+
+			wrappers.Apply(new[] { diceware.Uuid });
+			Assert.False(IsWrapped(other));
+			Assert.True(IsWrapped(diceware));
+
+			// Retarget to a non-Diceware generator plus one whose plugin hasn't registered yet.
+			var late = new OtherGenerator(new PwUuid(true));
+			PwUuid[] targets = { other.Uuid, late.Uuid };
+			wrappers.Apply(targets);
+			Assert.True(IsWrapped(other));
+			Assert.Equal("Other", pool.Find(other.Uuid).Name);
+			Assert.Same(diceware, pool.Find(diceware.Uuid));
+
+			pool.Add(late);
+			wrappers.Apply(targets);
+			Assert.True(IsWrapped(late));
+
+			wrappers.Apply(new PwUuid[0]);
+			Assert.Equal(new CustomPwGenerator[] { other, diceware, late }, pool.ToArray());
 		}
 
 		[Fact]
@@ -164,7 +193,7 @@ namespace KeePassDicewareMinQuality.Tests
 			Assert.Contains(rawBits, b => b < floor);
 
 			var pool = new CustomPwGeneratorPool { upstream };
-			Assert.NotNull(MinQualityPwGenerator.Install(pool, () => floor));
+			Assert.NotNull(MinQualityPwGenerator.Install(pool, MinQualitySetting.DicewareUuid, () => floor));
 
 			for (int i = 0; i < 200; i++)
 			{
@@ -177,7 +206,7 @@ namespace KeePassDicewareMinQuality.Tests
 		public void UpstreamDiceware_ThroughKeePass_UnreachableMinimumThrows()
 		{
 			var pool = new CustomPwGeneratorPool { new DicewarePwGenerator(new FakeHost()) };
-			MinQualityPwGenerator.Install(pool, () => 10_000);
+			MinQualityPwGenerator.Install(pool, MinQualitySetting.DicewareUuid, () => 10_000);
 
 			Assert.Throws<InvalidOperationException>(
 				() => PwGenerator.Generate(out _, DicewareProfile(TwoWordDicewareOptions()), null, pool));
