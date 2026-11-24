@@ -36,12 +36,16 @@ Check **Tools → Plugins**: both should be listed.
 
 ## Setting the minimum
 
-The minimum is a single KeePass setting that applies to every profile. The custom configuration key is
-`KeePassDicewareMinQuality_MinQualityBits`. If the key is missing or isn't an integer, the minimum is **90 bits**.
-A value of 0 or less turns the check off.
+The minimum is a single KeePass setting that applies to every profile. If it has never been set, or isn't an
+integer, it is **90 bits**. A value of 0 or less turns the check off.
+
+To change it on one machine, open **Tools → Diceware Minimum Quality...** and enter the number of bits. The new
+value applies to the next password generated. KeePass saves it with the rest of its configuration when it exits.
+The value is stored under the custom configuration key `KeePassDicewareMinQuality_MinQualityBits`.
 
 To set it for every user and stop users from changing it, add it to `KeePass.config.enforced.xml` in the KeePass
-program folder. If the file already exists, add the `<Custom>` element inside its `<Configuration>`.
+program folder. If the file already exists, add the `<Custom>` element inside its `<Configuration>`. The
+**Diceware Minimum Quality** dialog then shows the value read-only.
 
 ```xml
 <?xml version="1.0" encoding="utf-8"?>
@@ -59,6 +63,10 @@ KeePass matches `<Custom>` items by `<Key>`. Each time it starts, it merges the 
 configuration, so the enforced value replaces any value a user sets in their own `KeePass.config.xml`. This was
 checked on KeePass 2.61.1: with an enforced value of 70 and a user value of 10, the plugin used 70. See KeePass's
 [Enforced Configuration](https://keepass.info/help/kb/config_enf.html) page for how the file works.
+
+KeePass saves the merged configuration on exit, so the enforced value is copied into each user's
+`KeePass.config.xml`. Removing the item from the enforced file later leaves users with that last enforced value,
+not the 90-bit default.
 
 ## Moving from the GTKYCU-IT KeePassDiceware fork
 

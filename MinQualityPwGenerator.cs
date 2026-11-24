@@ -73,7 +73,7 @@ namespace KeePassDicewareMinQuality
 			throw new InvalidOperationException(
 				$"{_inner.Name} could not generate a password with an estimated quality of at least {minBits} bits " +
 				$"after {MaxAttempts} attempts. Increase the word count or salt in the {_inner.Name} options. " +
-				$"The minimum is set by {KeePassDicewareMinQualityExt.MinQualityBitsKey} in the KeePass configuration.");
+				"The minimum is set under Tools > Diceware Minimum Quality.");
 		}
 
 		/// <summary>

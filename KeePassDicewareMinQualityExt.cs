@@ -1,6 +1,9 @@
 using System;
+using System.Windows.Forms;
 
+using KeePass.App.Configuration;
 using KeePass.Plugins;
+using KeePass.UI;
 
 namespace KeePassDicewareMinQuality
 {
@@ -10,12 +13,6 @@ namespace KeePassDicewareMinQuality
 	/// </summary>
 	public sealed class KeePassDicewareMinQualityExt : Plugin
 	{
-		/// <summary>KeePass custom configuration key holding the minimum quality in bits.</summary>
-		internal const string MinQualityBitsKey = "KeePassDicewareMinQuality_MinQualityBits";
-
-		/// <summary>Used when the key is missing or not an integer. Matches the former fork's default.</summary>
-		internal const long DefaultMinQualityBits = 90;
-
 		private IPluginHost _host;
 		private MinQualityPwGenerator _generator;
 
@@ -53,6 +50,30 @@ namespace KeePassDicewareMinQuality
 
 		private void OnFormLoadPost(object sender, EventArgs e) => TryInstall();
 
+		public override ToolStripMenuItem GetMenuItem(PluginMenuType t)
+		{
+			if (t != PluginMenuType.Main)
+			{
+				return null;
+			}
+
+			var item = new ToolStripMenuItem("Diceware Minimum Quality...");
+			item.Click += (sender, e) => ShowSettings();
+			return item;
+		}
+
+		private void ShowSettings()
+		{
+			AceCustomConfig config = _host.CustomConfig;
+			using var form = new MinQualityForm(MinQualitySetting.Read(config),
+				MinQualitySetting.IsEnforced(AppConfigSerializer.EnforcedConfigXml));
+			if (form.ShowDialog(GlobalWindowManager.TopWindow) == DialogResult.OK && form.IsEditable)
+			{
+				// Takes effect on the next generated password; KeePass saves its configuration on exit.
+				MinQualitySetting.Write(config, form.MinQualityBits);
+			}
+		}
+
 		private void TryInstall()
 		{
 			if (_generator != null)
@@ -61,8 +82,7 @@ namespace KeePassDicewareMinQuality
 			}
 
 			IPluginHost host = _host;
-			_generator = MinQualityPwGenerator.Install(host.PwGeneratorPool,
-				() => host.CustomConfig.GetLong(MinQualityBitsKey, DefaultMinQualityBits));
+			_generator = MinQualityPwGenerator.Install(host.PwGeneratorPool, () => MinQualitySetting.Read(host.CustomConfig));
 		}
 	}
 }

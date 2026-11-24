@@ -118,7 +118,6 @@ namespace KeePassDicewareMinQuality.Tests
 
 			Assert.Equal(MinQualityPwGenerator.MaxAttempts, inner.Calls);
 			Assert.Contains("at least 10000 bits", ex.Message);
-			Assert.Contains(KeePassDicewareMinQualityExt.MinQualityBitsKey, ex.Message);
 		}
 
 		[Fact]
