@@ -27,14 +27,14 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: KeePassDicewareMinQuality
+          name: KeePassGeneratorMinQuality
           path: artifacts/
 
       - name: Check tag matches version
         if: startsWith(github.ref, 'refs/tags/v')
         shell: pwsh
         run: |
-          $line = Get-Content .meta/version.info | Where-Object { $_ -like 'KeePassDicewareMinQuality:*' }
+          $line = Get-Content .meta/version.info | Where-Object { $_ -like 'KeePassGeneratorMinQuality:*' }
           $version = $line.Split(':')[1]
           if ("v$version" -ne $env:GITHUB_REF_NAME) {
             throw "Tag $env:GITHUB_REF_NAME does not match .meta/version.info ($version)."
@@ -48,5 +48,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: >
           gh release create $env:GITHUB_REF_NAME
-          artifacts/KeePassDicewareMinQuality.dll artifacts/KeePassDicewareMinQuality.dll.sha256
+          artifacts/KeePassGeneratorMinQuality.dll artifacts/KeePassGeneratorMinQuality.dll.sha256
           --draft --generate-notes --title $env:GITHUB_REF_NAME

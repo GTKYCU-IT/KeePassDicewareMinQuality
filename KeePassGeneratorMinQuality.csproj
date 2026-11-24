@@ -7,8 +7,8 @@
 
     <!-- KeePass only loads DLL plugins whose Product is exactly "KeePass Plugin". -->
     <Product>KeePass Plugin</Product>
-    <AssemblyTitle>KeePass Diceware Minimum Quality</AssemblyTitle>
-    <Description>Enforces a minimum KeePass quality estimate on passwords from the upstream KeePassDiceware generator.</Description>
+    <AssemblyTitle>KeePass Generator Minimum Quality</AssemblyTitle>
+    <Description>Enforces a minimum KeePass quality estimate on passwords from selected plugin password generators.</Description>
     <Company>Greater Kentucky Credit Union, Inc.</Company>
     <Copyright>Copyright © 2026 Greater Kentucky Credit Union, Inc.</Copyright>
     <Deterministic>true</Deterministic>
@@ -25,6 +25,7 @@
       <!-- KeePass.exe is the host; never copy it next to the plugin DLL. -->
       <Private>false</Private>
     </Reference>
-    <InternalsVisibleTo Include="KeePassDicewareMinQuality.Tests" />
+    <Reference Include="System.Windows.Forms" />
+    <InternalsVisibleTo Include="KeePassGeneratorMinQuality.Tests" />
   </ItemGroup>
 </Project>

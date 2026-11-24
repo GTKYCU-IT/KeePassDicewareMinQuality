@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-    Builds and tests KeePassDicewareMinQuality, then writes the release DLL and its SHA-256 to artifacts\.
+    Builds and tests KeePassGeneratorMinQuality, then writes the release DLL and its SHA-256 to artifacts\.
 
 .PARAMETER KeePassPath
     Folder containing KeePass.exe to compile against. Defaults to the standard install location.
@@ -27,8 +27,8 @@ Set-StrictMode -Version Latest
 $KeePassVersion = '2.61.1'
 $KeePassZipSha256 = '3952354DB9B117E906F7CD4F9F5591065B95186472370DA47F46F3E246FEA864'
 
-# Upstream Diceware release the tests run against. Update version and hash together;
-# the hash is shown next to the asset on https://github.com/cmdwtf/KeePassDiceware/releases.
+# Upstream Diceware release the integration tests wrap (the default target generator). Update version and hash
+# together; the hash is shown next to the asset on https://github.com/cmdwtf/KeePassDiceware/releases.
 $DicewareVersion = '2.1.0'
 $DicewareDllSha256 = '279E37243A03320B6DC653D32B8D8A9FE51968B19D2969B626F2241B2139E7F8'
 
@@ -64,21 +64,21 @@ $dicewareDll = Join-Path $root '.deps\KeePassDiceware.dll'
 Get-Pinned "https://github.com/cmdwtf/KeePassDiceware/releases/download/v$DicewareVersion/KeePassDiceware.dll" $dicewareDll $DicewareDllSha256
 
 # KeePass reads the update-check version from .meta/version.info; it must match the assembly version.
-[xml] $project = Get-Content (Join-Path $root 'KeePassDicewareMinQuality.csproj')
+[xml] $project = Get-Content (Join-Path $root 'KeePassGeneratorMinQuality.csproj')
 $version = @($project.Project.PropertyGroup.VersionPrefix | Where-Object { $_ })[0]
-$versionInfo = Get-Content (Join-Path $root '.meta\version.info') | Where-Object { $_ -like 'KeePassDicewareMinQuality:*' }
-if ($versionInfo -ne "KeePassDicewareMinQuality:$version") {
-    throw ".meta\version.info has '$versionInfo' but KeePassDicewareMinQuality.csproj VersionPrefix is '$version'."
+$versionInfo = Get-Content (Join-Path $root '.meta\version.info') | Where-Object { $_ -like 'KeePassGeneratorMinQuality:*' }
+if ($versionInfo -ne "KeePassGeneratorMinQuality:$version") {
+    throw ".meta\version.info has '$versionInfo' but KeePassGeneratorMinQuality.csproj VersionPrefix is '$version'."
 }
 
 $ciBuild = if ($env:GITHUB_ACTIONS -eq 'true') { 'true' } else { 'false' }
-Invoke-Checked { dotnet test (Join-Path $root 'KeePassDicewareMinQuality.sln') -c Release -nologo "-p:KeePassPath=$KeePassPath" "-p:DicewareDll=$dicewareDll" "-p:ContinuousIntegrationBuild=$ciBuild" }
+Invoke-Checked { dotnet test (Join-Path $root 'KeePassGeneratorMinQuality.sln') -c Release -nologo "-p:KeePassPath=$KeePassPath" "-p:DicewareDll=$dicewareDll" "-p:ContinuousIntegrationBuild=$ciBuild" }
 
 New-Item -ItemType Directory -Force $artifacts | Out-Null
-$dll = Join-Path $artifacts 'KeePassDicewareMinQuality.dll'
-Copy-Item (Join-Path $root 'bin\Release\net452\KeePassDicewareMinQuality.dll') $dll -Force
+$dll = Join-Path $artifacts 'KeePassGeneratorMinQuality.dll'
+Copy-Item (Join-Path $root 'bin\Release\net452\KeePassGeneratorMinQuality.dll') $dll -Force
 $hash = (Get-FileHash $dll -Algorithm SHA256).Hash.ToLowerInvariant()
-Set-Content (Join-Path $artifacts 'KeePassDicewareMinQuality.dll.sha256') "$hash  KeePassDicewareMinQuality.dll" -Encoding ascii
+Set-Content (Join-Path $artifacts 'KeePassGeneratorMinQuality.dll.sha256') "$hash  KeePassGeneratorMinQuality.dll" -Encoding ascii
 
-Write-Host "KeePassDicewareMinQuality $version -> $dll"
+Write-Host "KeePassGeneratorMinQuality $version -> $dll"
 Write-Host "SHA-256 $hash"
